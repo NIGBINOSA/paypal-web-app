@@ -1,0 +1,44 @@
+node{
+  def mavenHome = tool name:  'maven3.8.5'
+  stage('1.Clone'){
+    git 'https://github.com/NIGBINOSA/paypal-web-app'
+  }
+  stage('2.MavenBuild'){
+    sh "${mavenHome}/bin/mvn clean package"
+  }
+  stage('3.CodeQuality'){
+    sh "${mavenHome}/bin/mvn sonar:sonar"
+  }
+  stage('4.UploadArtifacts'){
+    sh "${mavenHome}/bin/mvn deploy"
+  }
+  stage('5.Deploy2dev'){
+    deploy adapters: [tomcat9(credentialsId: 'Tomcat_Credentials', path: '', url: 'http://3.9.18.161:8080')], contextPath: null, war: 'target/*war'
+}
+stage('6.Deploy2UAT'){
+    sshagent(['Tomcat_ec2_agent1']) {
+    sh "scp -o StrictHostKeyChecking=no target/*.war ec2-user@172.31.33.114:/opt/tomcat9/webapps/uat.war"
+}
+
+}
+ stage('7.approval_Gate'){ 
+    timeout(time:5, unit:'DAYS') {
+      input message: 'please kindly append your approval'
+    }
+
+  }
+
+  stage('8.Deploy2Prod'){
+    sshagent(['Tomcat_ec2_agent1']) {
+    sh "scp -o StrictHostKeyChecking=no target/*.war ec2-user@172.31.33.114:/opt/tomcat9/webapps/app.war"
+}
+}
+ stage('9.EmailAlert'){
+  emailext body: '''Hi,
+Build Status for boa.app
+
+Regards
+Kiwi Technologies''', subject: 'Project Status', to: 'silverblue4real@gmail.com'
+ }
+
+}
